@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.npm-cache/
+*.log
+.DS_Store
+tests/out/
+
+# Blog is a separate content repository and is intentionally excluded
+/Blog/
