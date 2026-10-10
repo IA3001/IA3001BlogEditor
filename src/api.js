@@ -33,12 +33,18 @@ export const api = {
   createPost: (p, content) => post('/api/post', { path: p, content }),
   deletePost: (p) => fetch(`/api/post?path=${encodeURIComponent(p)}`, { method: 'DELETE' }).then(json),
   uploadImage: (payload) => post('/api/upload-image', payload),
+  scanAssets: () => fetch('/api/assets/scan').then(json),
+  deleteAsset: (p) => fetch(`/api/assets/file?path=${encodeURIComponent(p)}`, { method: 'DELETE' }).then(json),
 
   // 文件操作
   renameEntry: (p, name) => post('/api/fs/rename', { path: p, name }),
   moveEntry: (p, toDir) => post('/api/fs/move', { path: p, toDir }),
   createFolder: (p) => post('/api/fs/folder', { path: p }),
   deleteEntry: (p, opts = {}) => post('/api/fs/delete', { path: p, ...opts }),
+  projectTree: () => fetch('/api/fs/project-tree').then(json),
+  createProjectFile: (dir, name) => post('/api/fs/project-file', { dir, name }),
+  createProjectFolder: (dir, name) => post('/api/fs/project-folder', { dir, name }),
+  deleteProjectEntry: (p, recursive = false) => fetch(`/api/fs/project-entry?path=${encodeURIComponent(p)}&recursive=${recursive}`, { method: 'DELETE' }).then(json),
 
   // git / 发布
   gitStatus: () => fetch('/api/git/status').then(json),

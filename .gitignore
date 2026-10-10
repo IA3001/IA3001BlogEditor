@@ -7,3 +7,4 @@ tests/out/
 
 # Blog is a separate content repository and is intentionally excluded
 /Blog/
+/my/

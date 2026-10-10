@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../api.js';
+import Dropdown from './Dropdown.jsx';
 
 /* ---------------- 图标 ---------------- */
 
@@ -34,9 +36,25 @@ const TrashIcon = () => (
   </svg>
 );
 
-const PlusIcon = () => (
+const NewFileIcon = () => (
   <svg viewBox="0 0 16 16" aria-hidden="true">
-    <path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="M3.2 1.7h6l3 3v9.6H3.2zM9 1.9v3h3" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
+    <path d="M6 9.2h3.8M7.9 7.3v3.8" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+  </svg>
+);
+
+const LocateIcon = () => (
+  <svg viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="4.7" fill="none" stroke="currentColor" strokeWidth="1.35" />
+    <circle cx="8" cy="8" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" />
+    <path d="M8 1v2M8 13v2M1 8h2m10 0h2" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+  </svg>
+);
+
+const UnreferencedIcon = () => (
+  <svg className="unreferenced-icon" viewBox="0 0 16 16" role="img" aria-label="未发现引用的资源">
+    <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M8 4.5v4.1M8 11.2v.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );
 
@@ -216,7 +234,7 @@ function RenameInput({ value, onChange, onCommit, onCancel, depth, icon }) {
   );
 }
 
-function FolderRow({ node, depth, open, onToggle, onContextMenu, drag, dropTarget, onDragStart, onDragEnd, onDragOverRow, onDropRow, renaming }) {
+function FolderRow({ node, depth, open, onToggle, onContextMenu, drag, dropTarget, onDragStart, onDragEnd, onDragOverRow, onDropRow, renaming, disableDrag, unreferenced }) {
   if (renaming) {
     return (
       <RenameInput
@@ -238,14 +256,14 @@ function FolderRow({ node, depth, open, onToggle, onContextMenu, drag, dropTarge
       data-depth={depth}
       data-path={node.path}
       data-kind="dir"
-      draggable
-      onDragStart={(e) => onDragStart(e, node)}
+      draggable={!disableDrag}
+      onDragStart={disableDrag ? undefined : (e) => onDragStart(e, node)}
       onDragEnd={onDragEnd}
-      onDragOver={(e) => onDragOverRow(e, node)}
+      onDragOver={disableDrag ? undefined : (e) => onDragOverRow(e, node)}
       onDragLeave={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) onDragOverRow(e, null);
       }}
-      onDrop={(e) => onDropRow(e, node)}
+      onDrop={disableDrag ? undefined : (e) => onDropRow(e, node)}
       onClick={onToggle}
       onContextMenu={(e) => onContextMenu(e, node)}
     >
@@ -254,6 +272,7 @@ function FolderRow({ node, depth, open, onToggle, onContextMenu, drag, dropTarge
         <Chevron open={open} />
         <FolderIcon />
         <span className="row-label" title={node.path}>{node.name}</span>
+        {unreferenced && <span className="unreferenced-mark" title="文件夹内含未发现引用的资源"><UnreferencedIcon /></span>}
         <span className="row-count">{node.count ?? 0}</span>
       </span>
     </div>
@@ -274,6 +293,8 @@ function FileRow({
   query,
   trail,
   renaming,
+  disableDrag,
+  unreferenced,
 }) {
   if (renaming) {
     return (
@@ -287,13 +308,13 @@ function FileRow({
       />
     );
   }
-  const title = node.title || node.name;
+  const fileName = node.name.replace(/\.md$/i, '');
   const lastTrail = trail && trail.length ? trail[trail.length - 1] : null;
-  const showTrail = Boolean(flat && lastTrail && !title.toLowerCase().startsWith(String(lastTrail).toLowerCase()));
+  const showTrail = Boolean(flat && lastTrail && !fileName.toLowerCase().startsWith(String(lastTrail).toLowerCase()));
   const baseUnits = Math.floor((width - 12 - depth * 14 - 26 - 14) / 7.2);
   const reserve = flat ? (showTrail ? 18 : 8) : 0;
   const budget = Math.max(8, baseUnits - reserve);
-  const label = flat ? windowAroundMatch(title, query, budget) : ellipsisByWidth(title, budget);
+  const label = flat ? windowAroundMatch(fileName, query, budget) : ellipsisByWidth(fileName, budget);
 
   return (
     <div
@@ -303,9 +324,9 @@ function FileRow({
       data-depth={depth}
       data-path={node.path}
       data-kind="file"
-      title={`${node.path}\n${title}`}
-      draggable
-      onDragStart={(e) => onDragStart(e, node)}
+      title={node.path}
+      draggable={!disableDrag}
+      onDragStart={disableDrag ? undefined : (e) => onDragStart(e, node)}
       onDragEnd={onDragEnd}
       onClick={() => onOpen(node.path)}
       onContextMenu={(e) => onContextMenu(e, node)}
@@ -313,7 +334,8 @@ function FileRow({
       <Guides depth={depth} />
       <span className="row-main">
         <FileIcon />
-        <span className="row-label">{flat ? <Highlight text={label} query={query} /> : label}</span>
+        <span className={`row-label${unreferenced ? ' flagged' : ''}`}>{flat ? <Highlight text={label} query={query} /> : label}</span>
+        {unreferenced && <span className="unreferenced-mark" title="未发现引用的资源"><UnreferencedIcon /></span>}
         {showTrail && <span className="row-trail">{trail.join(' / ')}</span>}
         {node.published === false && <span className="pill pill-draft">草稿</span>}
         {flat && <span className="row-date">{shortDate(node)}</span>}
@@ -376,6 +398,7 @@ function ContextMenu({ menu, onAction, onClose }) {
 const WIDTH_KEY = 'blogEditor.sidebarWidth';
 
 export default function Sidebar({
+  collapsed = false,
   tree,
   currentPath,
   onOpen,
@@ -385,7 +408,32 @@ export default function Sidebar({
   onCreateFolder,
   onDelete,
   onNewPost,
+  onProjectOpen,
+  onProjectCreateFile,
+  onProjectCreateFolder,
+  onProjectDelete,
+  toast,
 }) {
+  const [viewMode, setViewMode] = useState(() => {
+    try { return window.localStorage.getItem('blogEditor.sidebarView') === 'all' ? 'all' : 'project'; } catch { return 'project'; }
+  });
+  const [projectTree, setProjectTree] = useState(null);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [projectLoadError, setProjectLoadError] = useState('');
+  const [assetScanLoading, setAssetScanLoading] = useState(false);
+  const [unreferencedAssets, setUnreferencedAssets] = useState(() => new Set());
+  const unreferencedAssetDirs = useMemo(() => {
+    const dirs = new Set();
+    for (const assetPath of unreferencedAssets) {
+      const parts = assetPath.split('/');
+      const assetFolder = parts.map((part) => part.toLowerCase()).lastIndexOf('assets');
+      const firstMarkedDir = assetFolder >= 0 ? assetFolder : parts.length - 2;
+      for (let index = firstMarkedDir; index < parts.length - 1; index += 1) {
+        dirs.add(parts.slice(0, index + 1).join('/').toLowerCase());
+      }
+    }
+    return dirs;
+  }, [unreferencedAssets]);
   const [expanded, setExpanded] = useState(() => new Set());
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(null);
@@ -406,6 +454,42 @@ export default function Sidebar({
   const widthRef = useRef(width);
   const searchRef = useRef(null);
   const treeRef = useRef(null);
+  const projectMode = viewMode === 'all';
+  const visibleTree = projectMode ? projectTree : tree;
+  const activePath = projectMode && currentPath ? `src/content/posts/${currentPath}` : currentPath;
+
+  const refreshProjectTree = useCallback(async () => {
+    setProjectLoading(true);
+    setProjectLoadError('');
+    try {
+      const result = await api.projectTree();
+      setProjectTree(result.tree || []);
+    } catch (error) {
+      const message = '项目文件加载失败：' + error.message;
+      setProjectLoadError(message);
+      toast?.(message);
+      setProjectLoading(false);
+      return;
+    }
+    setProjectLoading(false);
+    setAssetScanLoading(true);
+    try {
+      const scan = await api.scanAssets();
+      setUnreferencedAssets(new Set(
+        (scan.files || []).filter((file) => file.status === 'unreferenced').map((file) => file.path.toLowerCase())
+      ));
+    } catch (error) {
+      setUnreferencedAssets(new Set());
+      toast?.('资源引用状态扫描失败：' + error.message);
+    } finally {
+      setAssetScanLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem('blogEditor.sidebarView', viewMode); } catch { /* ignore */ }
+    if (viewMode === 'all' && projectTree === null) refreshProjectTree();
+  }, [projectTree, refreshProjectTree, viewMode]);
 
   useEffect(() => {
     widthRef.current = width;
@@ -456,10 +540,21 @@ export default function Sidebar({
     });
   };
 
+  const locateCurrentFile = () => {
+    if (!activePath) return;
+    setQuery('');
+    expandPath(activePath);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const row = [...(treeRef.current?.querySelectorAll('[data-path]') || [])]
+        .find((element) => element.dataset.path === activePath);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    }));
+  };
+
   // 打开文件时自动展开其祖先目录
   useEffect(() => {
-    if (!currentPath) return;
-    const parts = currentPath.split('/');
+    if (!activePath) return;
+    const parts = activePath.split('/');
     setExpanded((prev) => {
       const next = new Set(prev);
       let acc = '';
@@ -469,7 +564,7 @@ export default function Sidebar({
       }
       return next;
     });
-  }, [currentPath]);
+  }, [activePath]);
 
   // Ctrl+P 聚焦搜索
   useEffect(() => {
@@ -484,16 +579,16 @@ export default function Sidebar({
   }, []);
 
   const stats = useMemo(() => {
-    const files = collectFiles(tree);
+    const files = collectFiles(visibleTree);
     return { total: files.length, drafts: files.filter((f) => f.node.published === false).length };
-  }, [tree]);
+  }, [visibleTree]);
 
-  const allDirs = useMemo(() => collectDirs(tree), [tree]);
+  const allDirs = useMemo(() => collectDirs(visibleTree), [visibleTree]);
 
   const q = query.trim().toLowerCase();
   const results = useMemo(() => {
     if (!q) return [];
-    return collectFiles(tree)
+    return collectFiles(visibleTree)
       .filter(({ node, trail }) => {
         const hay = [node.title, node.name, node.path, ...(node.tags || []), ...trail].join(' ').toLowerCase();
         return hay.includes(q);
@@ -501,7 +596,7 @@ export default function Sidebar({
       .sort((a, b) =>
         String(b.node.updated || b.node.date || '').localeCompare(String(a.node.updated || a.node.date || ''))
       );
-  }, [tree, q]);
+  }, [visibleTree, q]);
 
   /* ---------- 交互 ---------- */
 
@@ -546,6 +641,15 @@ export default function Sidebar({
     setCreating(null);
     if (!name) return;
     const full = cur.dir ? `${cur.dir}/${name}` : name;
+    if (projectMode) {
+      if (cur.kind === 'dir') {
+        await onProjectCreateFolder(cur.dir, name);
+      } else {
+        await onProjectCreateFile(cur.dir, name);
+      }
+      await refreshProjectTree();
+      return;
+    }
     if (cur.kind === 'dir') await onCreateFolder(full);
     else await onCreateFile(cur.dir, name);
   };
@@ -558,9 +662,9 @@ export default function Sidebar({
       setMenu({
         x: e.clientX,
         y: e.clientY,
-        title: '文章根目录',
+        title: projectMode ? '项目根目录' : '文章根目录',
         items: [
-          { label: '新建文章', icon: MENU_IC.newFile, action: 'new-file' },
+          { label: projectMode ? '新建文件' : '新建文章', icon: MENU_IC.newFile, action: 'new-file' },
           { label: '新建文件夹', icon: MENU_IC.newFolder, action: 'new-folder' },
           { separator: true },
           { label: '全部展开', icon: MENU_IC.expand, action: 'expand-all' },
@@ -572,11 +676,17 @@ export default function Sidebar({
       return;
     }
     if (node.type === 'dir') {
-      setMenu({
-        x: e.clientX,
-        y: e.clientY,
-        title: node.path,
-        items: [
+      const items = projectMode
+        ? [
+          { label: '新建文件', icon: MENU_IC.newFile, action: 'new-file' },
+          { label: '新建文件夹', icon: MENU_IC.newFolder, action: 'new-folder' },
+          { separator: true },
+          { label: '展开全部子目录', icon: MENU_IC.expand, action: 'expand-sub' },
+          { label: '折叠', icon: MENU_IC.collapse, action: 'collapse-self' },
+          { separator: true },
+          { label: '删除文件夹', icon: MENU_IC.del, action: 'delete', danger: true },
+        ]
+        : [
           { label: '新建文章', icon: MENU_IC.newFile, action: 'new-file' },
           { label: '新建文件夹', icon: MENU_IC.newFolder, action: 'new-folder' },
           { separator: true },
@@ -587,7 +697,12 @@ export default function Sidebar({
           { label: '折叠', icon: MENU_IC.collapse, action: 'collapse-self' },
           { separator: true },
           { label: '删除文件夹', icon: MENU_IC.del, action: 'delete', danger: true },
-        ],
+        ];
+      setMenu({
+        x: e.clientX,
+        y: e.clientY,
+        title: node.path,
+        items,
         target: node,
         dirs,
       });
@@ -597,7 +712,12 @@ export default function Sidebar({
       x: e.clientX,
       y: e.clientY,
       title: node.path,
-      items: [
+      items: projectMode ? [
+        { label: '打开', icon: MENU_IC.open, action: 'open' },
+        { label: '复制相对路径', icon: MENU_IC.copy, action: 'copy-path' },
+        { separator: true },
+        { label: '删除文件', icon: MENU_IC.del, action: 'delete', danger: true },
+      ] : [
         { label: '打开', icon: MENU_IC.open, action: 'open' },
         { separator: true },
         { label: '重命名', icon: MENU_IC.rename, action: 'rename' },
@@ -613,15 +733,15 @@ export default function Sidebar({
 
   const handleMenuAction = (action) => {
     const target = menu?.target;
-    if (action === 'expand-all') return setExpanded(new Set(collectDirPaths(tree)));
+    if (action === 'expand-all') return setExpanded(new Set(collectDirPaths(visibleTree)));
     if (action === 'collapse-all') return setExpanded(new Set());
     if (action === 'new-file') return startCreate(target ? target.path : '', 'file');
     if (action === 'new-folder') return startCreate(target ? target.path : '', 'dir');
     if (!target) return undefined;
-    if (action === 'open') return onOpen(target.path);
+    if (action === 'open') return projectMode ? onProjectOpen(target.path) : onOpen(target.path);
     if (action === 'rename') return startRename(target);
     if (action === 'delete') {
-      return setConfirmDelete({ node: target, withAssets: target.type === 'file' });
+      return setConfirmDelete({ node: target, withAssets: !projectMode && target.type === 'file', projectMode });
     }
     if (action === 'collapse-self') {
       return setExpanded((prev) => {
@@ -772,6 +892,8 @@ export default function Sidebar({
               onDragOverRow={onDragOverRow}
               onDropRow={onDropRow}
               renaming={renaming && renaming.path === n.path ? renaming : null}
+              disableDrag={projectMode}
+              unreferenced={projectMode && unreferencedAssetDirs.has(n.path.toLowerCase())}
             />
             {open && (
               <div className="tree-children">
@@ -797,13 +919,15 @@ export default function Sidebar({
             node={n}
             depth={depth}
             width={width}
-            active={n.path === currentPath}
-            onOpen={onOpen}
+            active={n.path === activePath}
+            onOpen={projectMode ? onProjectOpen : onOpen}
             onContextMenu={openMenu}
             drag={drag}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             renaming={renaming && renaming.path === n.path ? renaming : null}
+            disableDrag={projectMode}
+            unreferenced={projectMode && unreferencedAssets.has(n.path.toLowerCase())}
           />
         );
       }
@@ -812,18 +936,59 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="sidebar" style={{ width }}>
+    <aside className={`sidebar${collapsed ? ' sidebar-collapsed' : ''}`} style={{ width }}>
       <div className="sidebar-head">
         <div className="sidebar-title">
-          文章
+          <Dropdown
+            className="sidebar-view-dropdown"
+            buttonClassName="sidebar-view-select"
+            aria-label="文件视图"
+            value={viewMode}
+            onChange={(nextMode) => {
+              setViewMode(nextMode);
+              if (nextMode === 'all') {
+                setProjectTree(null);
+                setProjectLoadError('');
+              }
+              setExpanded(new Set());
+              setMenu(null);
+              setQuery('');
+            }}
+            options={[
+              { value: 'project', label: '项目视图' },
+              { value: 'all', label: '全部文件' },
+            ]}
+          />
           <span className="sidebar-total">{stats.total}</span>
         </div>
         <div className="sidebar-tools">
+          {projectMode && (
+            <button
+              type="button"
+              className="icon-btn"
+              title={assetScanLoading ? '正在扫描资源引用…' : '刷新项目文件和资源引用状态'}
+              aria-label="刷新项目文件和资源引用状态"
+              disabled={projectLoading || assetScanLoading}
+              onClick={refreshProjectTree}
+            >
+              <span aria-hidden="true">↻</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="icon-btn"
+            title="定位当前文件"
+            aria-label="定位当前文件"
+            disabled={!activePath || !visibleTree || (projectMode && (projectLoading || assetScanLoading))}
+            onClick={locateCurrentFile}
+          >
+            <LocateIcon />
+          </button>
           <button
             type="button"
             className="icon-btn"
             title="全部展开"
-            onClick={() => setExpanded(new Set(collectDirPaths(tree)))}
+            onClick={() => setExpanded(new Set(collectDirPaths(visibleTree)))}
           >
             <ExpandIcon />
           </button>
@@ -832,12 +997,12 @@ export default function Sidebar({
           </button>
           <button
             type="button"
-            className="btn btn-primary btn-sm sidebar-new"
-            onClick={onNewPost || (() => startCreate('', 'file'))}
-            title="新建文章（向导）"
+            className="icon-btn sidebar-new"
+            onClick={projectMode ? () => startCreate('', 'file') : (onNewPost || (() => startCreate('', 'file')))}
+            title={projectMode ? '新建文件' : '新建文章（向导）'}
+            aria-label={projectMode ? '新建文件' : '新建文章'}
           >
-            <PlusIcon />
-            新建
+            <NewFileIcon />
           </button>
         </div>
       </div>
@@ -848,7 +1013,7 @@ export default function Sidebar({
           ref={searchRef}
           type="text"
           value={query}
-          placeholder="搜索标题 / 文件名 / 标签"
+          placeholder={projectMode ? '搜索项目文件' : '搜索标题 / 文件名 / 标签'}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
         />
@@ -860,11 +1025,11 @@ export default function Sidebar({
       </div>
 
       <div
-        className={`sidebar-tree${drag ? ' dragging-active' : ''}${drag && dropTarget === '' ? ' drop-root' : ''}`}
+        className={`sidebar-tree${!projectMode && drag ? ' dragging-active' : ''}${!projectMode && drag && dropTarget === '' ? ' drop-root' : ''}`}
         role="tree"
         ref={treeRef}
         onContextMenu={(e) => openMenu(e, null)}
-        onDragOver={(e) => {
+        onDragOver={projectMode ? undefined : (e) => {
           const cur = dragRef.current;
           if (!cur) return;
           const parent = cur.path.includes('/') ? cur.path.slice(0, cur.path.lastIndexOf('/')) : '';
@@ -872,14 +1037,25 @@ export default function Sidebar({
           e.preventDefault();
           setDropTarget('');
         }}
-        onDragLeave={(e) => {
+        onDragLeave={projectMode ? undefined : (e) => {
           if (!e.currentTarget.contains(e.relatedTarget)) setDropTarget(null);
         }}
-        onDrop={onDropRoot}
+        onDrop={projectMode ? undefined : onDropRoot}
       >
-        {!tree && <div className="sidebar-empty">加载中…</div>}
+        {!visibleTree && (
+          <div className="sidebar-empty">
+            {projectMode && projectLoadError ? (
+              <>
+                <div>{projectLoadError}</div>
+                <button type="button" className="btn btn-sm" disabled={projectLoading} onClick={refreshProjectTree}>
+                  {projectLoading ? '正在重试…' : '重试'}
+                </button>
+              </>
+            ) : projectMode && projectLoading ? '正在读取项目文件…' : '加载中…'}
+          </div>
+        )}
 
-        {tree && !q && (
+        {visibleTree && !q && (
           <>
             {creating && creating.dir === '' && (
               <RenameInput
@@ -891,11 +1067,11 @@ export default function Sidebar({
                 onCancel={() => setCreating(null)}
               />
             )}
-            {tree.length ? renderNodes(tree) : <div className="sidebar-empty">还没有文章，右键新建</div>}
+            {visibleTree.length ? renderNodes(visibleTree) : <div className="sidebar-empty">{projectMode ? '项目目录为空，右键新建文件' : '还没有文章，右键新建'}</div>}
           </>
         )}
 
-        {tree && q && (
+        {visibleTree && q && (
           <>
             <div className="search-summary">{results.length ? `${results.length} 条结果` : '没有匹配的文章'}</div>
             {results.map(({ node, trail }) => (
@@ -905,14 +1081,16 @@ export default function Sidebar({
                 depth={0}
                 flat
                 width={width}
-                active={node.path === currentPath}
-                onOpen={onOpen}
+                active={node.path === activePath}
+                onOpen={projectMode ? onProjectOpen : onOpen}
                 onContextMenu={openMenu}
                 drag={drag}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
                 query={q}
                 trail={trail}
+                disableDrag={projectMode}
+                unreferenced={projectMode && unreferencedAssets.has(node.path.toLowerCase())}
               />
             ))}
           </>
@@ -920,8 +1098,8 @@ export default function Sidebar({
       </div>
 
       <div className="sidebar-foot">
-        <span>{stats.total} 篇</span>
-        {stats.drafts > 0 && <span className="muted">· 草稿 {stats.drafts}</span>}
+        <span>{stats.total} {projectMode ? '项' : '篇'}</span>
+        {!projectMode && stats.drafts > 0 && <span className="muted">· 草稿 {stats.drafts}</span>}
         <div className="spacer" />
         <span className="muted sidebar-hint">右键 / 拖拽</span>
       </div>
@@ -938,22 +1116,27 @@ export default function Sidebar({
         <div className="modal-mask" onMouseDown={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
           <div className="modal modal-sm">
             <div className="modal-head">
-              <h3>删除{confirmDelete.node.type === 'file' ? '文章' : '文件夹'}</h3>
+              <h3>删除{confirmDelete.projectMode ? (confirmDelete.node.type === 'file' ? '文件' : '文件夹') : (confirmDelete.node.type === 'file' ? '文章' : '文件夹')}</h3>
               <button type="button" className="btn btn-sm" onClick={() => setConfirmDelete(null)}>✕</button>
             </div>
             <div className="modal-body">
               <div className="del-path">{confirmDelete.node.path}</div>
-              {confirmDelete.node.type === 'file' ? (
-                <label className="fm-check">
-                  <input
-                    type="checkbox"
-                    checked={confirmDelete.withAssets}
-                    onChange={(e) => setConfirmDelete((c) => ({ ...c, withAssets: e.target.checked }))}
-                  />
-                  同时删除附件目录（图片）
-                </label>
+              {confirmDelete.projectMode ? (
+                <div className="muted">所选内容会移入系统回收站；删除文件夹时，其全部子项会一起移动。</div>
+              ) : confirmDelete.node.type === 'file' ? (
+                <>
+                  <label className="fm-check">
+                    <input
+                      type="checkbox"
+                      checked={confirmDelete.withAssets}
+                      onChange={(e) => setConfirmDelete((c) => ({ ...c, withAssets: e.target.checked }))}
+                    />
+                    同时移入附件目录（图片）
+                  </label>
+                  <div className="muted">所选内容会移入系统回收站，可从回收站恢复。</div>
+                </>
               ) : (
-                <div className="muted">文件夹及其中的所有内容都会被删除，且不可恢复。</div>
+                <div className="muted">文件夹及其中的所有内容会一起移入系统回收站，可从回收站恢复。</div>
               )}
             </div>
             <div className="modal-foot">
@@ -964,13 +1147,18 @@ export default function Sidebar({
                 onClick={async () => {
                   const c = confirmDelete;
                   setConfirmDelete(null);
-                  await onDelete(c.node.path, {
-                    recursive: c.node.type === 'dir',
-                    withAssets: Boolean(c.withAssets),
-                  });
+                  if (c.projectMode) {
+                    await onProjectDelete(c.node.path, c.node.type === 'dir');
+                    await refreshProjectTree();
+                  } else {
+                    await onDelete(c.node.path, {
+                      recursive: c.node.type === 'dir',
+                      withAssets: Boolean(c.withAssets),
+                    });
+                  }
                 }}
               >
-                删除
+                移入回收站
               </button>
             </div>
           </div>

@@ -1,12 +1,35 @@
 import { useEffect, useRef } from 'react';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection, dropCursor, highlightSpecialChars } from '@codemirror/view';
-import { EditorState, Prec } from '@codemirror/state';
+import { Compartment, EditorState, Prec } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { wrapSelection, insertCodeBlock, insertInlineMath, insertBlockMath } from '../utils/editorActions.js';
+
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: [tags.keyword, tags.controlKeyword], color: '#ff7b72' },
+  { tag: [tags.variableName, tags.propertyName], color: '#e6edf3' },
+  { tag: [tags.typeName, tags.className], color: '#79c0ff' },
+  { tag: [tags.bool, tags.null, tags.number, tags.constant(tags.variableName)], color: '#79c0ff' },
+  { tag: [tags.string, tags.special(tags.string)], color: '#a5d6ff' },
+  { tag: [tags.operator, tags.modifier], color: '#ff7b72' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: '#8b949e', fontStyle: 'italic' },
+  { tag: [tags.punctuation, tags.bracket], color: '#c9d1d9' },
+  { tag: tags.self, color: '#ffa657' },
+  { tag: tags.function(tags.variableName), color: '#d2a8ff' },
+  { tag: tags.definition(tags.variableName), color: '#d2a8ff' },
+]);
+
+const syntaxTheme = new Compartment();
+
+function currentSyntaxTheme() {
+  return document.documentElement.dataset.theme === 'dark'
+    ? syntaxHighlighting(darkHighlightStyle, { fallback: true })
+    : syntaxHighlighting(defaultHighlightStyle, { fallback: true });
+}
 
 export default function EditorPane({ initialDoc, onDocChange, onCursor, onSave, onPasteImage, viewRef }) {
   const hostRef = useRef(null);
@@ -40,7 +63,7 @@ export default function EditorPane({ initialDoc, onDocChange, onCursor, onSave, 
           highlightSpecialChars(),
           EditorState.allowMultipleSelections.of(true),
           indentOnInput(),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+          syntaxTheme.of(currentSyntaxTheme()),
           bracketMatching(),
           highlightActiveLine(),
           highlightSelectionMatches(),
@@ -60,6 +83,11 @@ export default function EditorPane({ initialDoc, onDocChange, onCursor, onSave, 
       }),
       parent: host,
     });
+
+    const themeObserver = new MutationObserver(() => {
+      view.dispatch({ effects: syntaxTheme.reconfigure(currentSyntaxTheme()) });
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
     const onPaste = (e) => {
       const items = e.clipboardData?.items;
@@ -89,6 +117,7 @@ export default function EditorPane({ initialDoc, onDocChange, onCursor, onSave, 
     cb.current.onCursor?.(1, 1);
 
     return () => {
+      themeObserver.disconnect();
       view.dom.removeEventListener('paste', onPaste);
       view.dom.removeEventListener('drop', onDrop);
       view.destroy();

@@ -98,27 +98,21 @@ export default function PublishModal({ previewUrl, onClose, toast, onBeforePubli
         if (msg.type === 'log' && msg.line) {
           if (kind === 'preview') setPreview((p) => ({ ...p, logs: [...p.logs, msg.line].slice(-600) }));
           else setPublish((d) => ({ ...d, logs: [...d.logs, msg.line].slice(-3000) }));
+        } else if (msg.type === 'done') {
+          const code = msg.exitCode ?? null;
+          if (kind === 'preview') {
+            setPreview((p) => ({ ...p, running: false }));
+          } else {
+            setPublish((d) => ({ ...d, status: 'done', exitCode: code }));
+            refreshRepo();
+          }
+          es.close();
+          esRef.current.delete(id);
         }
       } catch {
         /* ignore */
       }
     };
-    es.addEventListener('done', (e) => {
-      let code = null;
-      try {
-        code = JSON.parse(e.data).exitCode;
-      } catch {
-        /* ignore */
-      }
-      if (kind === 'preview') {
-        setPreview((p) => ({ ...p, running: false }));
-      } else {
-        setPublish((d) => ({ ...d, status: 'done', exitCode: code }));
-        refreshRepo();
-      }
-      es.close();
-      esRef.current.delete(id);
-    });
   };
 
   const doPublish = async () => {

@@ -13,6 +13,7 @@ IA3001's Blog 的 Web 编辑端：在浏览器里集中完成 **文章管理 →
 | ✏️ 编辑体验 | CodeMirror 6 源码编辑 + 实时预览分屏（markdown-it + KaTeX + highlight.js），滚动同步；预览顶部显示文章元信息卡片（front-matter 不再混入正文） |
 | 🧰 工具栏 | 统一 SVG 图标 + 分组分隔 + 悬停提示（带快捷键）：加粗 / 斜体 / 三级标题 / 引用 / 两种列表 / 行内代码 / cpp 代码块 / 行内与块级公式 / 链接 / 注释 / 分割线 / 图片；右侧是工作流按钮（题目骨架 / Solution / Code）与**模板选择器**（一键插入 `Templates/` 里的模板正文） |
 | 🖼 图片 | 编辑器里 **粘贴截图或拖拽图片**，按 Obsidian 附件插件约定存为 `assets/<文章名>/file-YYYYMMDDHHmmssSSS.png` 并插入 `![](assets/…)` 引用（空格转 `%20`；会自动沿用文章已有的图片目录） |
+| 🗂 资源管理 | 集中浏览原本隐藏的图片和附件，按引用状态、路径和大小筛选；扫描 Markdown / Astro / HTML / CSS / JS 等项目内引用并报告失效链接。只读扫描，不自动删除；“未发现引用”不代表确认无用。 |
 | 🤖 Qwen 题面提取 | 粘贴原始题面 → 一键复制「题目提取提示词.md + 题面」→ 打开 Qwen 网页 → 把返回的 markdown 粘回 → 插入文章（可带 `## 题号 题名` 标题） |
 | 📋 属性面板 | 底部可折叠面板，Obsidian 式「标签在上」布局：`title / date / updated / tags / categories / description / published`；开关控件代替勾选框、日期与时间戳用等宽字体；**只改写你修改的那个字段**，其它字段（含 `date: 2026-09-19`、`updated: "…"` 的原始写法）字节不变；折叠后显示一行摘要 |
 | 🚀 发布 | 查看 git 待发布改动 → 可选先跑 `astro build` 校验 → `git add/commit/push` 到 `main`，实时流式日志，推送后由 GitHub Actions 自动发布 |
@@ -71,11 +72,12 @@ BlogEdior/
 │   ├── config.js          # 路径/端口/分支配置（可用环境变量覆盖）
 │   ├── posts.js           # 文章树/读写/删除
 │   ├── images.js          # 图片落盘（Obsidian 附件约定）
+│   ├── assets.js          # 资源清单、引用扫描与安全预览
 │   ├── git.js             # git 状态/远端/Actions 链接
 │   └── tasks.js           # 构建校验 / 发布推送 / astro dev 预览（SSE 日志）
 ├── src/                   # React 前端
 │   ├── components/        # Sidebar / EditorPane / PreviewPane / Toolbar /
-│   │                      # FrontMatterPanel / NewPostModal / QwenPanel / PublishModal
+│   │                      # FrontMatterPanel / NewPostModal / QwenPanel / PublishModal / AssetsModal
 │   └── utils/             # markdown 渲染 / front-matter 桥接 / 编辑器动作
 └── tests/                 # 冒烟测试与 front-matter 保真度探针
 ```

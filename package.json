@@ -5,7 +5,7 @@
   "type": "module",
   "description": "IA3001's Blog（Astro）编辑 Web 项目：文章管理 + Qwen 题面提取 + 图片粘贴 + 构建校验与推送发布",
   "scripts": {
-    "dev": "concurrently -k -n api,web -c blue,green \"node server/index.js\" \"vite\"",
+    "dev": "concurrently -k -n api,web -c blue,green \"node --watch server/index.js\" \"vite\"",
     "build": "vite build",
     "start": "node server/index.js",
     "api": "node server/index.js",
@@ -30,8 +30,10 @@
     "js-yaml": "^4.1.0",
     "katex": "^0.16.11",
     "markdown-it": "^13.0.2",
+    "markdown-it-task-lists": "^2.1.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "trash": "^10.1.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

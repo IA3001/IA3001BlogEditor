@@ -32,11 +32,13 @@ function MetaCard({ meta }) {
   );
 }
 
-const PreviewPane = forwardRef(function PreviewPane({ html, meta, onScroll }, ref) {
+const PreviewPane = forwardRef(function PreviewPane({ html, meta, onScroll, style }, ref) {
   return (
-    <div className="preview-pane" ref={ref} onScroll={onScroll}>
+    <div className="preview-pane" ref={ref} onScroll={onScroll} style={style}>
       <div className="preview-inner">
-        <MetaCard meta={meta} />
+        <div className="preview-meta-anchor" data-source-line="1">
+          <MetaCard meta={meta} />
+        </div>
         <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </div>

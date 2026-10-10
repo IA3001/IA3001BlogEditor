@@ -18,6 +18,8 @@ import * as tasks from './tasks.js';
 import * as fsops from './fsops.js';
 import { getRepoInfo } from './git.js';
 import { saveImage } from './images.js';
+import { deleteUnreferencedAsset, getAssetFile, scanAssets } from './assets.js';
+import * as projectFiles from './projectFiles.js';
 
 const app = express();
 app.use(express.json({ limit: '30mb' }));
@@ -119,6 +121,23 @@ app.post(
   })
 );
 
+app.get('/api/assets/scan', wrap(async (req, res) => res.json(await scanAssets())));
+
+app.delete('/api/assets/file', wrap(async (req, res) => {
+  if (!req.query.path) throw posts.httpErr(400, '缺少 path');
+  res.json(await deleteUnreferencedAsset(req.query.path));
+}));
+
+app.get(
+  '/api/assets/file',
+  wrap(async (req, res) => {
+    const asset = await getAssetFile(req.query.path);
+    await new Promise((resolve, reject) => {
+      res.sendFile(asset.abs, (err) => err ? reject(err) : resolve());
+    });
+  })
+);
+
 /* ---------------- 文件操作（重命名 / 移动 / 新建文件夹 / 删除） ---------------- */
 
 app.post(
@@ -154,6 +173,19 @@ app.post(
     res.json(await fsops.deleteEntry(p, { recursive: Boolean(recursive), withAssets: Boolean(withAssets) }));
   })
 );
+
+app.get('/api/fs/project-tree', wrap(async (req, res) => res.json(await projectFiles.getProjectTree())));
+app.post('/api/fs/project-file', wrap(async (req, res) => {
+  const { dir, name } = req.body || {};
+  res.status(201).json(await projectFiles.createProjectFile(dir, name));
+}));
+app.post('/api/fs/project-folder', wrap(async (req, res) => {
+  const { dir, name } = req.body || {};
+  res.status(201).json(await projectFiles.createProjectFolder(dir, name));
+}));
+app.delete('/api/fs/project-entry', wrap(async (req, res) => {
+  res.json(await projectFiles.deleteProjectEntry(req.query.path, { recursive: req.query.recursive === 'true' }));
+}));
 
 /* ---------------- git（发布流程） ---------------- */
 

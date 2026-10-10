@@ -159,20 +159,26 @@ export default function FrontMatterPanel({ data, onFieldChange, autoUpdateUpdate
 
   return (
     <div className={`fm-panel${open ? '' : ' collapsed'}`}>
-      <div className="fm-head">
+      <button
+        type="button"
+        className="fm-head"
+        aria-expanded={open}
+        aria-label={open ? '折叠元属性栏' : '展开元属性栏'}
+        onClick={() => setOpen((value) => !value)}
+      >
         <span className="fm-head-label">
           <GearIcon />
           属性
         </span>
         {!open && <span className="fm-head-summary" title={title}>{summary}</span>}
-        <div className="spacer" />
-        <button type="button" className="fm-toggle" onClick={() => setOpen((v) => !v)}>
+        <span className="spacer" />
+        <span className="fm-toggle" aria-hidden="true">
           {open ? '收起' : '展开'}
           <svg className={`fm-toggle-ic${open ? ' open' : ''}`} viewBox="0 0 16 16" aria-hidden="true">
             <path d="M4.6 6.4 8 9.8l3.4-3.4" {...S} />
           </svg>
-        </button>
-      </div>
+        </span>
+      </button>
 
       {open && (
         <div className="fm-grid">

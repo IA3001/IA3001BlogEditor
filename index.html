@@ -3,6 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      try {
+        const appearance = JSON.parse(localStorage.getItem('ia3001-appearance-v1') || '{}');
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const mode = ['light', 'dark', 'system'].includes(appearance.mode) ? appearance.mode : 'system';
+        document.documentElement.dataset.theme = mode === 'system' ? (systemDark ? 'dark' : 'light') : mode;
+        document.documentElement.dataset.themePreference = mode;
+        if (/^#[0-9a-f]{6}$/i.test(appearance.accent || '')) document.documentElement.style.setProperty('--accent', appearance.accent);
+      } catch {}
+    </script>
     <title>Blog Editor — IA3001</title>
   </head>
   <body>

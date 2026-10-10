@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { POSTS_DIR } from './config.js';
+import { moveToRecycleBin } from './trash.js';
 
 export function httpErr(status, message) {
   const e = new Error(message);
@@ -228,17 +229,16 @@ export async function deleteEntry(relPath, { recursive = false, withAssets = fal
 
   if (st.isFile()) {
     const folders = withAssets ? await attachmentFolders(abs) : [];
-    await fs.unlink(abs);
+    await moveToRecycleBin([abs, ...folders.map((folder) => folder.abs)]);
     const removed = [relative(abs)];
     for (const f of folders) {
-      await fs.rm(f.abs, { recursive: true, force: true });
       removed.push(f.rel ? `${path.dirname(relative(abs))}/${f.rel}`.replace(/^\.\//, '') : f.rel);
     }
-    return { ok: true, removed };
+    return { ok: true, removed, trashed: true };
   }
 
   if (!recursive) throw httpErr(400, '删除文件夹需要 recursive=true');
   const before = relative(abs);
-  await fs.rm(abs, { recursive: true, force: true });
-  return { ok: true, removed: [before] };
+  await moveToRecycleBin(abs);
+  return { ok: true, removed: [before], trashed: true };
 }

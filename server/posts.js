@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { POSTS_DIR } from './config.js';
 import { parseFrontMatter } from '../shared/frontmatter.mjs';
+import { moveToRecycleBin } from './trash.js';
 
 export function httpErr(status, message) {
   const e = new Error(message);
@@ -134,9 +135,10 @@ export async function createPost(relPath, content) {
 export async function deletePost(relPath) {
   const abs = safeResolve(relPath);
   try {
-    await fs.unlink(abs);
-  } catch {
-    throw httpErr(404, `文件不存在: ${relPath}`);
+    await moveToRecycleBin(abs);
+  } catch (error) {
+    if (error.code === 'ENOENT') throw httpErr(404, `文件不存在: ${relPath}`);
+    throw error;
   }
-  return { ok: true, path: relPath };
+  return { ok: true, path: relPath, trashed: true };
 }

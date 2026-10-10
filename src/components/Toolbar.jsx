@@ -1,3 +1,5 @@
+import Dropdown from './Dropdown.jsx';
+
 /* 统一的 16px 线性图标语言（stroke 1.4，currentColor） */
 const S = {
   fill: 'none',
@@ -125,22 +127,19 @@ function TemplatePicker({ templates, onInsertTemplate }) {
   return (
     <span className="tb-select-wrap" data-tip="插入 Templates/ 里的模板正文">
       {IC.template}
-      <select
-        className="tb-select"
+      <Dropdown
+        className="tb-dropdown"
+        buttonClassName="tb-select"
+        menuClassName="tb-dropdown-menu"
+        ariaLabel="插入模板"
+        placeholder="模板…"
         value=""
-        onChange={(e) => {
-          if (e.target.value) onInsertTemplate(e.target.value);
-          e.target.value = '';
-        }}
-      >
-        <option value="">模板…</option>
-        {templates.map((t) => (
-          <option key={t.path} value={t.path}>
-            {t.title}
-          </option>
-        ))}
-      </select>
-      {IC.chevron}
+        onChange={onInsertTemplate}
+        options={[
+          { value: '', label: '模板…' },
+          ...templates.map((template) => ({ value: template.path, label: template.name })),
+        ]}
+      />
     </span>
   );
 }
